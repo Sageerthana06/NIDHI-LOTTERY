@@ -1,4 +1,10 @@
-import { useState } from 'react';
+import {
+  useEffect,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+  type ReactNode,
+} from 'react';
 import {
   Award,
   Bell,
@@ -20,13 +26,34 @@ import { LuxuryCard } from '../../components/ui/LuxuryCard';
 import { LegalGateBadge, SampleDataBadge } from '../../components/ui/Badges';
 import { GoldButton } from '../../components/ui/GoldButton';
 import {
+  approveWinner,
+  archiveWinner,
+  createWinnerDraft as createWinnerDraftApi,
+  deleteWinnerDraft as deleteWinnerDraftApi,
+  getWinnerAuditEvents,
+  getWinnerProof,
+  listAdminWinners,
+  listCeoWinners,
+  publishWinner,
+  rejectWinner,
+  submitWinnerForApproval,
+  unpublishWinner,
+  updateWinnerDraft as updateWinnerDraftApi,
+  uploadWinnerProof,
+  validateAccessToken,
+  verifyWinner,
+  type WinnerApiRecord,
+  type WinnerApiSession,
+  type WinnerAuditEvent,
+  type WinnerDraftInput,
+} from '../../services/winnerApi';
+import {
   SAMPLE_ANNOUNCEMENTS,
   SAMPLE_CATEGORIES,
   SAMPLE_DRAW_SCHEDULES,
   SAMPLE_FAQS,
   SAMPLE_LOTTERIES,
   SAMPLE_RESULTS_PLACEHOLDER,
-  SAMPLE_WINNERS_PLACEHOLDER,
 } from '../../data/placeholderData';
 
 const ADMIN_TABS = [
@@ -49,9 +76,23 @@ const ADMIN_TABS = [
 
 type TabId = (typeof ADMIN_TABS)[number]['id'];
 
-const DEMO_AUDIT_LOGS: { id: string; actor: string; role: string; action: string; entity: string }[] = [];
-
 const DEMO_MESSAGES: { id: string; sender: string; subject: string; status: string }[] = [];
+
+const EMPTY_WINNER_FORM: WinnerDraftInput = {
+  drawName: '',
+  drawDate: '',
+  prizeCategory: '1st Prize Tier',
+  prizeAmount: '',
+  ticketNumber: '',
+};
+
+function WinnerStatusBadge({ children }: { children: ReactNode }) {
+  return (
+    <span className="inline-flex rounded-full border border-electricpurple/25 bg-electricpurple/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-electricpurple">
+      {children}
+    </span>
+  );
+}
 
 export function AdminDashboardPage() {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
@@ -59,8 +100,200 @@ export function AdminDashboardPage() {
   const [demoResults, setDemoResults] = useState(SAMPLE_RESULTS_PLACEHOLDER);
   const [newDrawCode, setNewDrawCode] = useState('');
   const [newLotteryName, setNewLotteryName] = useState('');
+  const [accessTokenDraft, setAccessTokenDraft] = useState('');
+  const [winnerAccessToken, setWinnerAccessToken] = useState('');
+  const [winnerSession, setWinnerSession] = useState<WinnerApiSession | null>(null);
+  const [winnerRecords, setWinnerRecords] = useState<WinnerApiRecord[]>([]);
+  const [winnerAuditEvents, setWinnerAuditEvents] = useState<WinnerAuditEvent[]>([]);
+  const [winnerForm, setWinnerForm] = useState<WinnerDraftInput>(EMPTY_WINNER_FORM);
+  const [editingWinnerId, setEditingWinnerId] = useState<string | null>(null);
+  const [pendingProof, setPendingProof] = useState<File | null>(null);
+  const [proofPreview, setProofPreview] = useState<{
+    winnerId: string;
+    url: string;
+    mimeType: string;
+    fileName: string;
+  } | null>(null);
+  const [winnerNotice, setWinnerNotice] = useState('');
+  const [winnerError, setWinnerError] = useState('');
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [isLoadingWinners, setIsLoadingWinners] = useState(false);
+  const [isSavingWinner, setIsSavingWinner] = useState(false);
   const q = searchQuery.trim().toLowerCase();
+  const visibleWinnerRecords = winnerRecords
+    .filter((record) => winnerSession?.role === 'ADMIN' || record.approvalStatus !== 'DRAFT')
+    .filter((record) => `${record.drawName} ${record.prizeCategory}`.toLowerCase().includes(q));
+  const editingWinnerRecord = editingWinnerId
+    ? winnerRecords.find((record) => record.id === editingWinnerId)
+    : undefined;
 
+  useEffect(
+    () => () => {
+      if (proofPreview) URL.revokeObjectURL(proofPreview.url);
+    },
+    [proofPreview],
+  );
+
+  const resetWinnerForm = () => {
+    setWinnerForm(EMPTY_WINNER_FORM);
+    setEditingWinnerId(null);
+    setPendingProof(null);
+    setWinnerError('');
+  };
+
+  const refreshWinnerData = async (
+    token = winnerAccessToken,
+    role = winnerSession?.role,
+  ) => {
+    if (!token || (role !== 'ADMIN' && role !== 'CEO')) return;
+    setIsLoadingWinners(true);
+    try {
+      const [records, events] = await Promise.all([
+        role === 'ADMIN' ? listAdminWinners(token) : listCeoWinners(token),
+        getWinnerAuditEvents(token),
+      ]);
+      setWinnerRecords(records);
+      setWinnerAuditEvents(events);
+    } catch (error) {
+      setWinnerError(error instanceof Error ? error.message : 'Could not load winner records.');
+    } finally {
+      setIsLoadingWinners(false);
+    }
+  };
+
+  const handleWinnerConnect = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const token = accessTokenDraft.trim();
+    if (!token) return;
+
+    setIsConnecting(true);
+    setWinnerError('');
+    setWinnerNotice('');
+    try {
+      const session = await validateAccessToken(token);
+      if (session.role !== 'ADMIN' && session.role !== 'CEO') {
+        throw new Error('This winner workflow requires an ADMIN or CEO access token.');
+      }
+      setWinnerAccessToken(token);
+      setWinnerSession(session);
+      await refreshWinnerData(token, session.role);
+      setAccessTokenDraft('');
+    } catch (error) {
+      setWinnerError(error instanceof Error ? error.message : 'Could not validate this access token.');
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  const disconnectWinnerSession = () => {
+    setWinnerAccessToken('');
+    setWinnerSession(null);
+    setWinnerRecords([]);
+    setWinnerAuditEvents([]);
+    setAccessTokenDraft('');
+    setWinnerNotice('');
+    resetWinnerForm();
+    if (proofPreview) URL.revokeObjectURL(proofPreview.url);
+    setProofPreview(null);
+  };
+
+  const runWinnerAction = async (action: () => Promise<unknown>, successMessage: string) => {
+    setWinnerError('');
+    try {
+      await action();
+      setWinnerNotice(successMessage);
+      await refreshWinnerData();
+    } catch (error) {
+      setWinnerError(error instanceof Error ? error.message : 'The winner action could not be completed.');
+    }
+  };
+
+  const handleWinnerProofChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = '';
+    if (!file) return;
+
+    const acceptedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+    if (!acceptedTypes.includes(file.type)) {
+      setWinnerError('Choose a PDF, JPEG, PNG, or WebP proof file.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setWinnerError('Proof files must be 5 MB or smaller.');
+      return;
+    }
+
+    setPendingProof(file);
+    setWinnerError('');
+  };
+
+  const handleSaveWinnerDraft = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!winnerAccessToken || winnerSession?.role !== 'ADMIN') {
+      setWinnerError('Connect with an Admin access token to manage drafts.');
+      return;
+    }
+
+    const input: WinnerDraftInput = {
+      ...winnerForm,
+      drawName: winnerForm.drawName.trim(),
+      prizeCategory: winnerForm.prizeCategory.trim(),
+      prizeAmount: winnerForm.prizeAmount.trim(),
+      ticketNumber: winnerForm.ticketNumber.trim(),
+    };
+
+    setIsSavingWinner(true);
+    setWinnerError('');
+    try {
+      const record = editingWinnerId
+        ? await updateWinnerDraftApi(winnerAccessToken, editingWinnerId, input)
+        : await createWinnerDraftApi(winnerAccessToken, input);
+
+      if (!editingWinnerId) setEditingWinnerId(record.id);
+      if (pendingProof) {
+        await uploadWinnerProof(winnerAccessToken, record.id, pendingProof);
+        setPendingProof(null);
+      }
+      await refreshWinnerData();
+      resetWinnerForm();
+      setWinnerNotice(editingWinnerId ? 'Draft updated in PostgreSQL.' : 'Draft created in PostgreSQL.');
+    } catch (error) {
+      setWinnerError(error instanceof Error ? error.message : 'The draft could not be saved.');
+    } finally {
+      setIsSavingWinner(false);
+    }
+  };
+
+  const handleEditWinnerDraft = (record: WinnerApiRecord) => {
+    setWinnerForm({
+      drawName: record.drawName,
+      drawDate: record.drawDate,
+      prizeCategory: record.prizeCategory,
+      prizeAmount: record.prizeAmount,
+      ticketNumber: record.ticketNumber,
+    });
+    setPendingProof(null);
+    setEditingWinnerId(record.id);
+    setWinnerNotice('');
+    setWinnerError('');
+  };
+
+  const handleProofReview = async (record: WinnerApiRecord) => {
+    if (!winnerAccessToken || !record.proof) return;
+    setWinnerError('');
+    try {
+      const file = await getWinnerProof(winnerAccessToken, record.id);
+      if (proofPreview) URL.revokeObjectURL(proofPreview.url);
+      setProofPreview({
+        winnerId: record.id,
+        url: URL.createObjectURL(file),
+        mimeType: record.proof.mimeType,
+        fileName: record.proof.fileName,
+      });
+    } catch (error) {
+      setWinnerError(error instanceof Error ? error.message : 'Could not load the proof document.');
+    }
+  };
   const handleAddDemoResult = () => {
     if (!newDrawCode.trim() || !newLotteryName.trim()) return;
     setDemoResults((prev) => [
@@ -179,20 +412,23 @@ export function AdminDashboardPage() {
                     <SampleDataBadge label="INFO" />
                   </div>
                   <div className="divide-y divide-slate-100 text-xs">
-                    {DEMO_AUDIT_LOGS.map((log) => (
+                    {winnerAuditEvents.slice(0, 6).map((log) => (
                       <div
                         key={log.id}
                         className="flex flex-wrap items-center justify-between gap-2 py-2.5"
                       >
                         <div>
                           <span className="font-mono font-bold text-royalblue">{log.action}</span>
-                          <span className="ml-2 text-slate-600">on {log.entity}</span>
+                          <span className="ml-2 text-slate-600">on {log.winnerLabel}</span>
                         </div>
                         <span className="text-slate-500">
-                          {log.actor} ({log.role})
+                          {log.actorRole} · {new Date(log.timestamp).toLocaleString()}
                         </span>
                       </div>
                     ))}
+                    {winnerAuditEvents.length === 0 && (
+                      <p className="py-3 text-xs text-slate-500">No winner actions have been recorded in this session.</p>
+                    )}
                   </div>
                 </LuxuryCard>
               </div>
@@ -332,24 +568,315 @@ export function AdminDashboardPage() {
                 )}
 
                 {activeTab === 'winners' && (
-                  <div className="space-y-3">
-                    {SAMPLE_WINNERS_PLACEHOLDER.map((w) => (
-                      <div
-                        key={w.id}
-                        className="rounded-xl border border-slate-200 bg-lightbg p-4"
-                      >
-                        <div className="flex items-center justify-between">
-                          <p className="font-bold text-midnight">{w.displayTitle}</p>
-                          <span className="text-xs font-bold text-teal-700">
-                            Consent: {w.consentStatus}
-                          </span>
+                  <div className="space-y-5">
+                    {!winnerSession ? (
+                      <div className="space-y-4 rounded-xl border border-metallicgold/50 bg-ivory p-5">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <SampleDataBadge label="BACKEND WORKFLOW" />
+                          <LegalGateBadge label="Trusted Admin/CEO Token Required" />
                         </div>
-                        <p className="mt-1 text-xs text-slate-600">{w.districtOrRegion}</p>
+                        <div>
+                          <h3 className="font-display text-lg font-bold text-midnight">Connect to Winner Management</h3>
+                          <p className="mt-2 text-xs leading-relaxed text-slate-700">
+                            Provide a short-lived access token issued by the configured trusted authentication service.
+                            The backend validates its role. This page keeps the token in memory only; no token is issued
+                            or saved by this frontend.
+                          </p>
+                        </div>
+                        <form onSubmit={handleWinnerConnect} className="flex flex-col gap-3 sm:flex-row">
+                          <label className="flex-1 space-y-1 text-xs font-semibold text-slate-700">
+                            <span className="block">Admin or CEO access token</span>
+                            <input
+                              required
+                              type="password"
+                              autoComplete="off"
+                              value={accessTokenDraft}
+                              onChange={(event) => setAccessTokenDraft(event.target.value)}
+                              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                            />
+                          </label>
+                          <button
+                            type="submit"
+                            disabled={isConnecting}
+                            className="self-end rounded-lg bg-royalblue px-4 py-2 text-xs font-bold text-white disabled:opacity-50"
+                          >
+                            {isConnecting ? 'Checking token…' : 'Connect'}
+                          </button>
+                        </form>
+                        {winnerError && <p role="alert" className="text-xs font-semibold text-royalred">{winnerError}</p>}
                       </div>
-                    ))}
+                    ) : (
+                      <>
+                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-teal-700/20 bg-teal-50 p-4">
+                          <div>
+                            <p className="text-sm font-bold text-teal-800">Connected as {winnerSession.role}</p>
+                            <p className="mt-1 text-xs text-slate-600">
+                              Winner actions and access are checked by the backend. Data and audit history come from PostgreSQL.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={disconnectWinnerSession}
+                            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700"
+                          >
+                            Disconnect
+                          </button>
+                        </div>
+
+                        {winnerError && <p role="alert" className="text-xs font-semibold text-royalred">{winnerError}</p>}
+                        {winnerNotice && <p role="status" className="text-xs font-semibold text-teal-700">{winnerNotice}</p>}
+
+                        {winnerSession.role === 'ADMIN' && (
+                          <form
+                            onSubmit={handleSaveWinnerDraft}
+                            className="space-y-4 rounded-xl border border-slate-200 bg-lightbg p-4"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <h3 className="font-display text-lg font-bold text-midnight">
+                                {editingWinnerId ? 'Edit Winner Draft' : 'Add Winner Draft'}
+                              </h3>
+                              <WinnerStatusBadge>{editingWinnerId ? 'Editing Draft' : 'Draft'}</WinnerStatusBadge>
+                            </div>
+
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              <label className="space-y-1 text-xs font-semibold text-slate-700">
+                                <span className="block">Draw name</span>
+                                <input required maxLength={160} value={winnerForm.drawName}
+                                  onChange={(event) => setWinnerForm((current) => ({ ...current, drawName: event.target.value }))}
+                                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
+                              </label>
+                              <label className="space-y-1 text-xs font-semibold text-slate-700">
+                                <span className="block">Draw date</span>
+                                <input required type="date" value={winnerForm.drawDate}
+                                  onChange={(event) => setWinnerForm((current) => ({ ...current, drawDate: event.target.value }))}
+                                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
+                              </label>
+                              <label className="space-y-1 text-xs font-semibold text-slate-700">
+                                <span className="block">Prize category</span>
+                                <select required value={winnerForm.prizeCategory}
+                                  onChange={(event) => setWinnerForm((current) => ({ ...current, prizeCategory: event.target.value }))}
+                                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+                                  <option>1st Prize Tier</option><option>2nd Prize Tier</option>
+                                  <option>3rd Prize Tier</option><option>Other</option>
+                                </select>
+                              </label>
+                              <label className="space-y-1 text-xs font-semibold text-slate-700">
+                                <span className="block">Prize amount (informational)</span>
+                                <input required maxLength={80} value={winnerForm.prizeAmount}
+                                  onChange={(event) => setWinnerForm((current) => ({ ...current, prizeAmount: event.target.value }))}
+                                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
+                              </label>
+                              <label className="space-y-1 text-xs font-semibold text-slate-700 sm:col-span-2">
+                                <span className="block">Ticket number (private to Admin/CEO)</span>
+                                <input required maxLength={160} value={winnerForm.ticketNumber}
+                                  onChange={(event) => setWinnerForm((current) => ({ ...current, ticketNumber: event.target.value }))}
+                                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
+                              </label>
+                            </div>
+
+                            <label className="block space-y-1 text-xs font-semibold text-slate-700">
+                              <span className="block">Official result proof for CEO review</span>
+                              <input type="file" accept="application/pdf,image/jpeg,image/png,image/webp"
+                                onChange={handleWinnerProofChange}
+                                className="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-ivory file:px-3 file:py-1 file:font-semibold" />
+                              <span className="block font-normal text-slate-500">
+                                PDF, JPEG, PNG, or WebP, up to 5 MB. The backend validates file content and stores it privately.
+                              </span>
+                            </label>
+                            <p className="text-xs text-slate-600">
+                              {pendingProof
+                                ? `Selected, not yet uploaded: ${pendingProof.name}`
+                                : editingWinnerRecord?.proof
+                                  ? `Current proof: ${editingWinnerRecord.proof.fileName}`
+                                  : 'No proof attached. Proof is required before submission.'}
+                            </p>
+
+                            <div className="flex flex-wrap gap-2">
+                              <button type="submit" disabled={isSavingWinner}
+                                className="rounded-lg bg-royalred px-4 py-2 text-xs font-bold text-white hover:bg-royalred-dark disabled:opacity-50">
+                                {isSavingWinner ? 'Saving…' : editingWinnerId ? 'Update Draft' : 'Create Draft'}
+                              </button>
+                              {editingWinnerId && (
+                                <button type="button" onClick={resetWinnerForm}
+                                  className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700">
+                                  Cancel Edit
+                                </button>
+                              )}
+                            </div>
+                          </form>
+                        )}
+
+                        <div className="flex items-center justify-between gap-3">
+                          <h3 className="font-display text-lg font-bold text-midnight">
+                            {winnerSession.role === 'ADMIN' ? 'Admin Drafts & Submissions' : 'CEO Review Queue'}
+                          </h3>
+                          <WinnerStatusBadge>{visibleWinnerRecords.length} Records</WinnerStatusBadge>
+                        </div>
+
+                        {isLoadingWinners ? (
+                          <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-600">Loading winner records…</div>
+                        ) : visibleWinnerRecords.length === 0 ? (
+                          <div className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-600">
+                            {winnerSession.role === 'CEO'
+                              ? 'No submitted winner records are waiting for CEO review.'
+                              : 'No winner drafts or submissions match this search.'}
+                          </div>
+                        ) : (
+                          visibleWinnerRecords.map((record) => {
+                            const canEditDraft = winnerSession.role === 'ADMIN' &&
+                              (record.approvalStatus === 'DRAFT' || record.approvalStatus === 'REJECTED');
+                            return (
+                              <article key={record.id} className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                  <div>
+                                    <h3 className="font-display text-lg font-bold text-midnight">{record.drawName}</h3>
+                                    <p className="text-xs text-slate-600">{record.drawDate} · {record.prizeCategory} · {record.prizeAmount}</p>
+                                    <p className="mt-1 text-xs text-slate-500">Ticket: {record.ticketNumber}</p>
+                                  </div>
+                                  <div className="flex flex-wrap gap-2">
+                                    <WinnerStatusBadge>Proof: {record.verificationStatus}</WinnerStatusBadge>
+                                    <WinnerStatusBadge>Approval: {record.approvalStatus.replace('_', ' ')}</WinnerStatusBadge>
+                                    {record.isPublished && <SampleDataBadge label="PUBLISHED" />}
+                                  </div>
+                                </div>
+
+                                <div className="rounded-lg border border-slate-200 bg-lightbg p-3">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <p className="text-xs font-semibold text-slate-700">
+                                      Official proof: {record.proof?.fileName || 'No file attached'}
+                                    </p>
+                                    {record.proof && (
+                                      <button type="button" onClick={() => void handleProofReview(record)}
+                                        className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700">
+                                        {proofPreview?.winnerId === record.id ? 'Refresh proof' : 'Review proof'}
+                                      </button>
+                                    )}
+                                  </div>
+                                  {proofPreview?.winnerId === record.id && (
+                                    <div className="mt-3 space-y-2">
+                                      {proofPreview.mimeType.startsWith('image/') ? (
+                                        <img src={proofPreview.url} alt="Privately retrieved official proof"
+                                          className="max-h-96 max-w-full rounded-lg object-contain" />
+                                      ) : (
+                                        <iframe title={`Proof document ${proofPreview.fileName}`} src={proofPreview.url}
+                                          className="h-96 w-full rounded-lg border border-slate-200" />
+                                      )}
+                                      <button type="button" onClick={() => {
+                                        URL.revokeObjectURL(proofPreview.url);
+                                        setProofPreview(null);
+                                      }} className="text-xs font-bold text-slate-600 underline">Close proof</button>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {record.rejectionReason && (
+                                  <p className="rounded-lg border border-royalred/20 bg-royalred/5 p-3 text-xs text-royalred">
+                                    CEO rejection reason: {record.rejectionReason}
+                                  </p>
+                                )}
+                                {record.approvalReason && (
+                                  <p className="rounded-lg border border-teal-700/20 bg-teal-50 p-3 text-xs text-teal-800">
+                                    CEO approval reason: {record.approvalReason}
+                                  </p>
+                                )}
+
+                                <div className="flex flex-wrap items-end gap-3">
+                                  {canEditDraft && (
+                                    <>
+                                      <button type="button" onClick={() => handleEditWinnerDraft(record)}
+                                        className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700">
+                                        {record.approvalStatus === 'REJECTED' ? 'Revise Draft' : 'Edit Draft'}
+                                      </button>
+                                      {record.approvalStatus === 'DRAFT' && (
+                                        <button type="button" onClick={() => {
+                                          if (window.confirm('Delete this draft from PostgreSQL?')) {
+                                            void runWinnerAction(() => deleteWinnerDraftApi(winnerAccessToken, record.id), 'Draft deleted.');
+                                          }
+                                        }} className="rounded-lg border border-royalred/30 px-3 py-2 text-xs font-bold text-royalred">
+                                          Delete Draft
+                                        </button>
+                                      )}
+                                    </>
+                                  )}
+                                  {winnerSession.role === 'ADMIN' && record.approvalStatus === 'DRAFT' && (
+                                    <button type="button" disabled={!record.proof || isLoadingWinners}
+                                      onClick={() => void runWinnerAction(
+                                        () => submitWinnerForApproval(winnerAccessToken, record.id),
+                                        'Submitted for CEO approval.',
+                                      )} className="rounded-lg bg-royalblue px-3 py-2 text-xs font-bold text-white disabled:opacity-40">
+                                      Submit for CEO Approval
+                                    </button>
+                                  )}
+                                  {winnerSession.role === 'CEO' && record.approvalStatus === 'PENDING_APPROVAL' && (
+                                    <>
+                                      {record.verificationStatus !== 'VERIFIED' && (
+                                        <button type="button" disabled={!record.proof || isLoadingWinners}
+                                          onClick={() => void runWinnerAction(
+                                            () => verifyWinner(winnerAccessToken, record.id),
+                                            'Official proof verified.',
+                                          )} className="rounded-lg bg-royalblue px-3 py-2 text-xs font-bold text-white disabled:opacity-40">
+                                          Verify Official Proof
+                                        </button>
+                                      )}
+                                      {record.verificationStatus === 'VERIFIED' && (
+                                        <button type="button" onClick={() => {
+                                          const reason = window.prompt('Enter the approval reason:');
+                                          if (reason?.trim()) {
+                                            void runWinnerAction(
+                                              () => approveWinner(winnerAccessToken, record.id, reason),
+                                              'Winner approved.',
+                                            );
+                                          }
+                                        }} className="rounded-lg bg-teal-700 px-3 py-2 text-xs font-bold text-white">
+                                          Approve Winner
+                                        </button>
+                                      )}
+                                      <button type="button" onClick={() => {
+                                        const reason = window.prompt('Enter a reason for rejecting this submission:');
+                                        if (reason?.trim()) {
+                                          void runWinnerAction(
+                                            () => rejectWinner(winnerAccessToken, record.id, reason),
+                                            'Submission rejected and reason recorded.',
+                                          );
+                                        }
+                                      }} className="rounded-lg border border-royalred/30 px-3 py-2 text-xs font-bold text-royalred">
+                                        Reject Record
+                                      </button>
+                                    </>
+                                  )}
+                                  {winnerSession.role === 'CEO' && record.approvalStatus === 'APPROVED' && (
+                                    <>
+                                      {record.isPublished ? (
+                                        <button type="button" onClick={() => void runWinnerAction(
+                                          () => unpublishWinner(winnerAccessToken, record.id), 'Winner unpublished.',
+                                        )} className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700">
+                                          Unpublish Winner
+                                        </button>
+                                      ) : (
+                                        <button type="button" onClick={() => void runWinnerAction(
+                                          () => publishWinner(winnerAccessToken, record.id), 'Winner published.',
+                                        )} className="rounded-lg bg-teal-700 px-3 py-2 text-xs font-bold text-white">
+                                          Publish Approved Winner
+                                        </button>
+                                      )}
+                                      <button type="button" onClick={() => {
+                                        if (window.confirm('Archive this winner and remove it from public results?')) {
+                                          void runWinnerAction(() => archiveWinner(winnerAccessToken, record.id), 'Winner archived.');
+                                        }
+                                      }} className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700">
+                                        Archive Record
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </article>
+                            );
+                          })
+                        )}
+                      </>
+                    )}
                   </div>
                 )}
-
                 {activeTab === 'customers' && (
                   <div className="rounded-xl border border-slate-200 bg-lightbg p-5 text-xs text-slate-600">
                     Info Customer Management Preview — No real customer PII is collected or stored in
@@ -430,13 +957,27 @@ export function AdminDashboardPage() {
 
                 {activeTab === 'audit' && (
                   <div className="divide-y divide-slate-100 text-xs">
-                    {DEMO_AUDIT_LOGS.filter((l) => l.action.toLowerCase().includes(q)).map((l) => (
-                      <div key={l.id} className="flex items-center justify-between py-3">
-                        <span className="font-mono font-bold text-royalblue">{l.action}</span>
-                        <span className="text-slate-600">{l.entity}</span>
-                        <span className="text-slate-500">{l.actor}</span>
+                    {winnerAuditEvents
+                      .filter((event) =>
+                        `${event.action} ${event.winnerLabel} ${event.actorRole}`.toLowerCase().includes(q),
+                      )
+                      .map((event) => (
+                      <div key={event.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
+                        <div>
+                          <span className="font-mono font-bold text-royalblue">{event.action}</span>
+                          <span className="ml-2 text-slate-600">{event.winnerLabel}</span>
+                          {event.details && <p className="mt-1 text-slate-500">{event.details}</p>}
+                        </div>
+                        <span className="text-slate-500">
+                          {event.actorRole} · {new Date(event.timestamp).toLocaleString()}
+                        </span>
                       </div>
                     ))}
+                    {winnerAuditEvents.filter((event) =>
+                      `${event.action} ${event.winnerLabel} ${event.actorRole}`.toLowerCase().includes(q),
+                    ).length === 0 && (
+                      <p className="py-3 text-slate-500">No matching session audit events.</p>
+                    )}
                   </div>
                 )}
               </LuxuryCard>

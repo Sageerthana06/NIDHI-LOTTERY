@@ -1,6 +1,11 @@
 import { Link } from 'react-router-dom';
 import { Award, Lock } from 'lucide-react';
-import { SAMPLE_WINNERS_PLACEHOLDER } from '../../data/placeholderData';
+import { SampleDataBadge } from '../ui/Badges';
+import { FEATURE_GATES } from '../../config/featureGates';
+import {
+  isWinnerEligibleForDemoPublication,
+  useWinnerDemo,
+} from '../../context/WinnerDemoContext';
 
 const CARD_THEMES = [
   'bg-[#E59E0D] text-white',
@@ -10,6 +15,13 @@ const CARD_THEMES = [
 ];
 
 export function WinnersGallery() {
+  const { records } = useWinnerDemo();
+  const publishedWinners = FEATURE_GATES.PUBLIC_WINNERS
+    ? records
+        .filter((record) => record.isDemoPublished && isWinnerEligibleForDemoPublication(record))
+        .slice(0, 4)
+    : [];
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
@@ -22,31 +34,29 @@ export function WinnersGallery() {
         </Link>
       </div>
 
-      {SAMPLE_WINNERS_PLACEHOLDER.length === 0 ? (
+      {publishedWinners.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-[#FFFDF8] p-8 text-center">
           <p className="font-display text-base font-bold text-charcoal">
             No Verified Records Available
           </p>
           <p className="mx-auto mt-1 max-w-xl text-sm text-slate-600">
-            Winner records remain protected under DPDP privacy safeguards and will be published
-            only after official verification and written consent.
+            No verified demo previews are published in this session. Real winner information stays
+            hidden until legal authorization and backend verification are available.
           </p>
         </div>
       ) : (
         <div className="no-scrollbar flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 lg:grid lg:grid-cols-4">
-          {SAMPLE_WINNERS_PLACEHOLDER.slice(0, 4).map((w, idx) => (
+          {publishedWinners.map((winner, idx) => (
             <div
-              key={`${w.id}-${idx}`}
+              key={winner.id}
               className={`relative flex w-[230px] shrink-0 snap-start flex-col items-center justify-between rounded-2xl px-4 py-5 text-center shadow-md lg:w-auto ${
                 CARD_THEMES[idx % CARD_THEMES.length]
               }`}
             >
-              <span className="rounded-full bg-black/25 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-metallicgold">
-                Pending Review
-              </span>
+              <SampleDataBadge label="DEMO PREVIEW" />
 
               <p className="mt-2 font-display text-xl font-bold text-metallicgold">
-                {w.prizeCategory}
+                {winner.prizeCategory}
               </p>
 
               <div className="my-4 flex h-24 w-24 flex-col items-center justify-center rounded-full border-4 border-white bg-ivory text-charcoal shadow-inner">
@@ -57,9 +67,11 @@ export function WinnersGallery() {
               </div>
 
               <div className="space-y-1 text-xs">
-                <p className="font-bold text-white">{w.displayTitle}</p>
-                <p className="text-white/85">{w.schemeName}</p>
-                <p className="font-mono text-[11px] text-metallicgold">Draw: {w.drawDate}</p>
+                <p className="font-bold text-white">{winner.drawName}</p>
+                <p className="text-white/85">{winner.prizeAmount}</p>
+                <p className="font-mono text-[11px] text-metallicgold">
+                  Draw: {winner.drawDate}
+                </p>
               </div>
             </div>
           ))}

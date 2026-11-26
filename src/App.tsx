@@ -9,6 +9,7 @@ import { LotteryDetailsPage } from './pages/public/LotteryDetailsPage';
 import { PublishedResultsPage } from './pages/public/PublishedResultsPage';
 import { PreviousResultsPage } from './pages/public/PreviousResultsPage';
 import { WinnersPage } from './pages/public/WinnersPage';
+import { WinnerDemoProvider } from './context/WinnerDemoContext';
 
 const ResultDetailPage = lazy(() =>
   import('./pages/public/ResultDetailPage').then((m) => ({ default: m.ResultDetailPage })),
@@ -126,50 +127,52 @@ function PageLoader() {
 
 export function App() {
   return (
-    <BrowserRouter>
-      <DocumentTitleSync />
-      <PublicLayout>
-        <Suspense fallback={<PageLoader />}>
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/lottery-information" element={<LotteryInformationPage />} />
-            <Route path="/schemes" element={<LotteryInformationPage />} />
-            <Route path="/lotteries" element={<LotteriesFilterPage initialFilter="ALL" />} />
-            <Route path="/daily-lotteries" element={<LotteriesFilterPage initialFilter="DAILY" />} />
-            <Route path="/weekly-lotteries" element={<LotteriesFilterPage initialFilter="WEEKLY" />} />
-            <Route path="/monthly-lotteries" element={<LotteriesFilterPage initialFilter="MONTHLY" />} />
-            <Route path="/categories" element={<LotteryCategoriesPage />} />
-            <Route path="/lotteries/:slug" element={<LotteryDetailsPage />} />
-            <Route path="/results" element={<PublishedResultsPage />} />
-            <Route path="/results-vault" element={<PublishedResultsPage />} />
-            <Route path="/results/:id" element={<ResultDetailPage />} />
-            <Route path="/previous-results" element={<PreviousResultsPage />} />
-            <Route path="/winners" element={<WinnersPage />} />
-            <Route path="/draw-calendar" element={<DrawCalendarPage />} />
-            <Route path="/calendar" element={<DrawCalendarPage />} />
-            <Route path="/updates" element={<UpdatesPage />} />
-            <Route path="/notifications" element={<UpdatesPage />} />
-            <Route path="/search" element={<SearchPage />} />
-            <Route path="/information-centre" element={<InformationCentrePage />} />
-            <Route path="/info" element={<InformationCentrePage />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-            <Route path="/dashboard" element={<UserDashboardPage />} />
-            <Route path="/booking-history" element={<BookingHistoryPage />} />
-            <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/about" element={<AboutPage />} />
-            <Route path="/contact" element={<ContactPage />} />
-            <Route path="/faq" element={<FaqPage />} />
-            <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
-            <Route path="/terms" element={<TermsPage />} />
-            <Route path="/disclaimer" element={<DisclaimerPage />} />
-            <Route path="/responsible-play" element={<ResponsiblePlayPage />} />
-            <Route path="/admin" element={<AdminDashboardPage />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </Suspense>
-      </PublicLayout>
-    </BrowserRouter>
+    <WinnerDemoProvider>
+      <BrowserRouter>
+        <DocumentTitleSync />
+        <PublicLayout>
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/lottery-information" element={<LotteryInformationPage />} />
+              <Route path="/schemes" element={<LotteryInformationPage />} />
+              <Route path="/lotteries" element={<LotteriesFilterPage initialFilter="ALL" />} />
+              <Route path="/daily-lotteries" element={<LotteriesFilterPage initialFilter="DAILY" />} />
+              <Route path="/weekly-lotteries" element={<LotteriesFilterPage initialFilter="WEEKLY" />} />
+              <Route path="/monthly-lotteries" element={<LotteriesFilterPage initialFilter="MONTHLY" />} />
+              <Route path="/categories" element={<LotteryCategoriesPage />} />
+              <Route path="/lotteries/:slug" element={<LotteryDetailsPage />} />
+              <Route path="/results" element={<PublishedResultsPage />} />
+              <Route path="/results-vault" element={<PublishedResultsPage />} />
+              <Route path="/results/:id" element={<ResultDetailPage />} />
+              <Route path="/previous-results" element={<PreviousResultsPage />} />
+              <Route path="/winners" element={<WinnersPage />} />
+              <Route path="/draw-calendar" element={<DrawCalendarPage />} />
+              <Route path="/calendar" element={<DrawCalendarPage />} />
+              <Route path="/updates" element={<UpdatesPage />} />
+              <Route path="/notifications" element={<UpdatesPage />} />
+              <Route path="/search" element={<SearchPage />} />
+              <Route path="/information-centre" element={<InformationCentrePage />} />
+              <Route path="/info" element={<InformationCentrePage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
+              <Route path="/dashboard" element={<UserDashboardPage />} />
+              <Route path="/booking-history" element={<BookingHistoryPage />} />
+              <Route path="/profile" element={<ProfilePage />} />
+              <Route path="/about" element={<AboutPage />} />
+              <Route path="/contact" element={<ContactPage />} />
+              <Route path="/faq" element={<FaqPage />} />
+              <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+              <Route path="/terms" element={<TermsPage />} />
+              <Route path="/disclaimer" element={<DisclaimerPage />} />
+              <Route path="/responsible-play" element={<ResponsiblePlayPage />} />
+              <Route path="/admin" element={<AdminDashboardPage />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Suspense>
+        </PublicLayout>
+      </BrowserRouter>
+    </WinnerDemoProvider>
   );
 }
 
