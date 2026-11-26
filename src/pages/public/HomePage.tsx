@@ -25,7 +25,7 @@ import {
   SAMPLE_FAQS,
   SAMPLE_RESULTS_PLACEHOLDER,
 } from '../../data/placeholderData';
-import { LotterySchemesSection, SchemeCarousel } from '../../components/sections/SchemeCarousel';
+import { SchemeCarousel } from '../../components/sections/SchemeCarousel';
 import { WinnersGallery } from '../../components/sections/WinnersGallery';
 import { TestimonialsSection } from '../../components/sections/TestimonialsSection';
 import { GoldButton } from '../../components/ui/GoldButton';
@@ -74,57 +74,54 @@ const CATEGORY_CARDS = [
     desc: 'Weekly draw schedules, first prize details, and draw timings.',
     to: '/weekly-lotteries',
     accent: 'border-chillired/30',
+    image: '/assets/weekly-lotteries.png',
   },
   {
     title: 'Monthly Lotteries',
     desc: 'Monthly draw schedules and informational prize tier summaries.',
     to: '/monthly-lotteries',
     accent: 'border-metallicgold/60',
+    image: '/assets/monthly-lotteries.png',
   },
   {
     title: 'Special Lotteries',
     desc: 'Special & festive series guides with official draw schedules.',
     to: '/lotteries',
     accent: 'border-[#0E1738]/25',
+    image: '/assets/special-lotteries.png',
   },
 ];
 
 const HOW_TO_PLAY_STEPS = [
   {
-    step: '01',
-    title: 'Understand the Official Kerala Lottery Schemes',
-    detail:
-      'Review draw categories, series naming, and prize structures governed by the Lotteries (Regulation) Act, 1998 and Kerala Paper Lotteries Rules.',
+    caption: 'Lottery Schemes',
+    image: '/assets/how-to-play/step-01-schemes.png',
+    imagePosition: 'center',
   },
   {
-    step: '02',
-    title: 'Learn the Official Draw Schedules',
-    detail:
-      'Check scheduled draw dates and draw timings using our Draw Calendar and scheme informational pages before a draw takes place.',
+    caption: 'Draw Schedules',
+    image: '/assets/how-to-play/step-02-schedule.png',
+    imagePosition: 'center',
   },
   {
-    step: '03',
-    title: 'Authorized Offline Ticket Purchase Process',
-    detail:
-      'Official Kerala paper lottery tickets are sold solely through authorized physical agents and state-approved retail outlets — never online.',
+    caption: 'Browse Online',
+    image: '/assets/how-to-play/step-03-browse-online.png',
+    imagePosition: 'center',
   },
   {
-    step: '04',
-    title: 'Check Results via Official Government Gazette',
-    detail:
-      'Always verify winning numbers exclusively against official Kerala State Government Gazette publications after each scheduled draw.',
+    caption: 'Results Verification',
+    image: '/assets/how-to-play/step-04-gazette.png',
+    imagePosition: '58% center',
   },
   {
-    step: '05',
-    title: 'Understand Prize Claim Procedures',
-    detail:
-      'Claims for verified winning tickets are submitted directly to the designated District Lottery Office, Directorate, or authorized bank.',
+    caption: 'Prize Claims',
+    image: '/assets/how-to-play/step-05-claim.png',
+    imagePosition: '58% center',
   },
   {
-    step: '06',
-    title: 'Required Documents & Claim Deadlines',
-    detail:
-      'Keep the original intact ticket signed on the back, valid photo ID, PAN card, photographs, and submit within the statutory 30-day claim window.',
+    caption: 'Required Documents',
+    image: '/assets/how-to-play/step-06-documents.png',
+    imagePosition: 'center',
   },
 ];
 
@@ -291,88 +288,111 @@ export function HomePage() {
       </section>
 
       {/* 6. Results Section */}
-      <section className="border-y border-slate-200 bg-[#FFFDF8] px-4 py-12 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-7xl space-y-6">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <h2 className="font-display text-3xl font-bold text-charcoal lg:text-[36px]">
-                Latest Results
-              </h2>
-              <p className="mt-1 text-sm text-slate-600">
-                Published draw archive and verification status.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <GoldButton to="/previous-results" variant="outline">
-                Previous Results
-              </GoldButton>
-              <GoldButton to="/results" variant="primary">
-                View All Results <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              </GoldButton>
-            </div>
-          </div>
+      <motion.section
+        initial={reduced ? false : { opacity: 0, y: 16 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, amount: 0.12 }}
+        transition={{ duration: reduced ? 0 : 0.45, ease: [0.22, 1, 0.36, 1] }}
+        className="relative isolate flex min-h-[40rem] items-center overflow-hidden border-y border-slate-200 px-4 py-16 sm:px-6 sm:py-20 lg:px-8 lg:py-24"
+      >
+        <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden" aria-hidden="true">
+          <div
+            className="absolute inset-0 bg-cover bg-no-repeat bg-[position:92%_center] brightness-[1.18] contrast-[1.08] saturate-[1.08] sm:bg-[position:70%_center] lg:bg-center"
+            style={{ backgroundImage: "url('/assets/golden-lottery-balls.png')" }}
+          />
+          <div className="absolute inset-0 bg-[#06142D]/15" />
+        </div>
 
-          {!FEATURE_GATES.PUBLIC_RESULTS && (
-            <LegalGatePanel
-              featureName="Published Results & Winning Numbers"
-              flagName="VITE_FEATURE_PUBLIC_RESULTS"
-              description="Real winning numbers remain disabled pending legal counsel review."
-            />
-          )}
-
-          {SAMPLE_RESULTS_PLACEHOLDER.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center shadow-sm">
-              <SampleDataBadge label="NO VERIFIED RECORDS AVAILABLE" />
-              <h3 className="mt-2 font-display text-lg font-bold text-charcoal">
-                Information Coming Soon
-              </h3>
-              <p className="mx-auto mt-1 max-w-xl text-sm text-slate-600">
-                Official draw results and winning numbers will be displayed here only after Gazette
-                verification and legal clearance.
-              </p>
-            </div>
-          ) : (
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="space-y-1">
-                  <SampleDataBadge label="PENDING LEGAL REVIEW" />
-                  <h3 className="pt-1 font-display text-xl font-bold text-charcoal">
-                    {SAMPLE_RESULTS_PLACEHOLDER[0].lotteryName}
-                  </h3>
-                  <p className="font-mono text-xs text-slate-600">
-                    {SAMPLE_RESULTS_PLACEHOLDER[0].drawCode} •{' '}
-                    {SAMPLE_RESULTS_PLACEHOLDER[0].drawDate}
-                  </p>
-                </div>
-                <GoldButton to={`/results/${SAMPLE_RESULTS_PLACEHOLDER[0].id}`} variant="outline">
-                  Open Result Detail
+        <div className="relative z-10 mx-auto w-full max-w-6xl">
+          <div className="space-y-6 rounded-3xl border border-metallicgold/50 bg-[#07182E]/50 p-5 text-white shadow-[0_28px_80px_-38px_rgba(3,13,30,0.72)] backdrop-blur-sm sm:p-8 lg:p-10">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <h2 className="font-display text-3xl font-bold text-white lg:text-[36px]">
+                  Latest Results
+                </h2>
+                <p className="mt-1 text-sm text-slate-200">
+                  Published draw archive and verification status.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <GoldButton to="/previous-results" variant="outline">
+                  Previous Results
+                </GoldButton>
+                <GoldButton to="/results" variant="primary">
+                  View All Results <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </GoldButton>
               </div>
             </div>
-          )}
-        </div>
-      </section>
 
-      {/* 7. Lotteries Section (All / Weekly / Monthly / Special + 13 Cards + Categories) */}
+            {!FEATURE_GATES.PUBLIC_RESULTS && (
+              <LegalGatePanel
+                featureName="Published Results & Winning Numbers"
+                flagName="VITE_FEATURE_PUBLIC_RESULTS"
+                description="Real winning numbers remain disabled pending legal counsel review."
+              />
+            )}
+
+            {SAMPLE_RESULTS_PLACEHOLDER.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center shadow-sm">
+                <SampleDataBadge label="NO VERIFIED RECORDS AVAILABLE" />
+                <h3 className="mt-2 font-display text-lg font-bold text-charcoal">
+                  Information Coming Soon
+                </h3>
+                <p className="mx-auto mt-1 max-w-xl text-sm text-slate-600">
+                  Official draw results and winning numbers will be displayed here only after Gazette
+                  verification and legal clearance.
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="space-y-1">
+                    <SampleDataBadge label="PENDING LEGAL REVIEW" />
+                    <h3 className="pt-1 font-display text-xl font-bold text-charcoal">
+                      {SAMPLE_RESULTS_PLACEHOLDER[0].lotteryName}
+                    </h3>
+                    <p className="font-mono text-xs text-slate-600">
+                      {SAMPLE_RESULTS_PLACEHOLDER[0].drawCode} •{' '}
+                      {SAMPLE_RESULTS_PLACEHOLDER[0].drawDate}
+                    </p>
+                  </div>
+                  <GoldButton to={`/results/${SAMPLE_RESULTS_PLACEHOLDER[0].id}`} variant="outline">
+                    Open Result Detail
+                  </GoldButton>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </motion.section>
+
+      {/* 7. Lottery Categories Section */}
       <section className="px-4 py-12 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl space-y-10">
-          <LotterySchemesSection />
-
-          <div className="grid gap-6 md:grid-cols-3">
+          <div className="grid items-stretch gap-6 md:grid-cols-3">
             {CATEGORY_CARDS.map((cat) => (
               <Link
                 key={cat.title}
                 to={cat.to}
-                className={`flex flex-col justify-between gap-4 rounded-2xl border bg-white p-6 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md ${cat.accent}`}
+                className={`group relative flex h-full min-h-[14rem] flex-col overflow-hidden rounded-2xl border p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${cat.accent}`}
               >
-                <div className="space-y-2">
-                  <Layers className="h-6 w-6 text-chillired" aria-hidden="true" />
-                  <h3 className="font-display text-xl font-bold text-charcoal">{cat.title}</h3>
-                  <p className="text-sm text-slate-600">{cat.desc}</p>
-                </div>
-                <span className="inline-flex items-center gap-1 text-xs font-bold text-chillired">
-                  Explore Category <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                <span className="pointer-events-none absolute inset-0 z-0 overflow-hidden" aria-hidden="true">
+                  <span
+                    className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-transform duration-700 ease-out group-hover:scale-105"
+                    style={{ backgroundImage: `url('${cat.image}')` }}
+                  />
+                  <span className="absolute inset-0 bg-gradient-to-br from-[#06142D]/80 via-[#06142D]/60 to-[#06142D]/75" />
                 </span>
+                <div className="relative z-10 flex flex-1 flex-col justify-between gap-4">
+                  <div className="space-y-2">
+                    <Layers className="h-6 w-6 text-metallicgold-light" aria-hidden="true" />
+                    <h3 className="font-display text-xl font-bold text-white">{cat.title}</h3>
+                    <p className="text-sm text-slate-100">{cat.desc}</p>
+                  </div>
+                  <span className="inline-flex items-center gap-1 text-xs font-bold text-metallicgold-light">
+                    Explore Category <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                  </span>
+                </div>
               </Link>
             ))}
           </div>
@@ -465,20 +485,41 @@ export function HomePage() {
               Step-by-step informational guide to Kerala paper lottery schemes, offline purchases,
               Gazette verification, and statutory prize claims. No online ticket sales or payments.
             </p>
+            <p
+              id="how-to-play-image-note"
+              role="note"
+              className="mx-auto mt-4 max-w-4xl rounded-xl border border-metallicgold/40 bg-[#0E1738]/[0.03] px-4 py-3 text-xs leading-relaxed text-slate-600 sm:text-sm"
+            >
+              The images below are generated illustrations, not official government publications.
+              Any seals, ticket details, dates, numbers, or prize amounts shown in them are fictional
+              and unverified.
+            </p>
           </div>
 
-          <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid auto-rows-fr items-stretch gap-5 md:grid-cols-2 lg:grid-cols-3">
             {HOW_TO_PLAY_STEPS.map((item) => (
-              <div
-                key={item.step}
-                className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-[#FFFDF8] p-5 shadow-sm"
+              <article
+                key={item.caption}
+                className="group flex h-full flex-col overflow-hidden rounded-2xl border border-metallicgold/45 bg-[#0E1738] shadow-md transition-all duration-300 hover:-translate-y-1 hover:border-metallicgold/75 hover:shadow-xl motion-reduce:transform-none motion-reduce:transition-none"
               >
-                <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-chillired font-mono text-xs font-bold text-white">
-                  {item.step}
-                </span>
-                <h3 className="font-display text-base font-bold text-charcoal">{item.title}</h3>
-                <p className="text-sm leading-relaxed text-slate-600">{item.detail}</p>
-              </div>
+                <div className="relative aspect-video w-full shrink-0 overflow-hidden bg-[#07182E]">
+                  <img
+                    src={item.image}
+                    alt={`Illustrative artwork for ${item.caption}`}
+                    aria-describedby="how-to-play-image-note"
+                    loading="lazy"
+                    decoding="async"
+                    className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105 motion-reduce:transform-none motion-reduce:transition-none"
+                    style={{ objectPosition: item.imagePosition }}
+                  />
+                  <span className="absolute right-3 top-3 rounded-full border border-white/50 bg-[#07182E]/90 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm">
+                    Illustrative · Not Official
+                  </span>
+                </div>
+                <p className="flex min-h-12 flex-1 items-center border-t border-metallicgold/25 px-4 py-3 text-sm font-semibold text-white">
+                  {item.caption}
+                </p>
+              </article>
             ))}
           </div>
         </div>
